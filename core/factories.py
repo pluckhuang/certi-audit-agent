@@ -5,6 +5,7 @@ from typing import Callable, Dict, Type
 from llm_services.abstract_service import AbstractLLMService
 from llm_services.openai_service import OpenAIService
 from llm_services.gemini_service import GeminiService
+from llm_services.ollama_service import OllamaService
 
 from static_analyzers.abstract_analyzer import AbstractStaticAnalyzer
 from static_analyzers.slither_analyzer import SlitherAnalyzer
@@ -31,12 +32,22 @@ class ServiceFactory:
             raise ValueError("配置错误: 使用 Gemini 服务需要设置 GEMINI_API_KEY")
         return GeminiService()
 
+    @staticmethod
+    def create_ollama_service() -> AbstractLLMService:
+        # Ollama 不需要 API Key，但需要确保服务可达
+        return OllamaService()
+
     # LLM 注册表：将模型关键字映射到创建函数
     # 只要模型名称包含 key (如 "gpt-4o" 包含 "gpt")，就使用对应的工厂
     _LLM_REGISTRY: Dict[str, Callable[[], AbstractLLMService]] = {
         "gpt": create_openai_service,
         "openai": create_openai_service,
         "gemini": create_gemini_service,
+        "llama": create_ollama_service,
+        "qwen": create_ollama_service,
+        "mistral": create_ollama_service,
+        "deepseek": create_ollama_service,
+        "ollama": create_ollama_service,
     }
 
     @classmethod

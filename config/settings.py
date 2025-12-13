@@ -23,6 +23,7 @@ class ProjectSettings(BaseSettings):
     
     OPENAI_API_KEY: str = "" 
     GEMINI_API_KEY: str = "" 
+    OLLAMA_BASE_URL: str = "http://localhost:11434/v1" # 默认 Ollama 地址
     SECURITY_BEST_PRACTICES_PATH: str = "config/best_practices.txt"
 
 llm_settings = LLMSettings()

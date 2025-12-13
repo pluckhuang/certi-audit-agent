@@ -2,6 +2,7 @@
 import argparse
 import os
 import sys
+import json
 from dotenv import load_dotenv
 
 # 加载环境
@@ -34,6 +35,39 @@ def parse_arguments():
         help="覆盖 .env 中的项目类型配置"
     )
 
+    # [新增] 审计模式
+    parser.add_argument(
+        "--mode",
+        type=str,
+        choices=["SECURITY", "GAS"],
+        default="SECURITY",
+        help="审计模式: SECURITY (安全漏洞) 或 GAS (Gas 优化)"
+    )
+
+    # [新增] 用户意图描述
+    parser.add_argument(
+        "--desc",
+        type=str,
+        default="",
+        help="合约业务逻辑的简短描述，用于辅助 AI 理解用户意图 (例如: '这是一个不可转让的灵魂绑定代币')"
+    )
+
+    # [新增] 是否开启 PoC 生成 (默认关闭以加快速度)
+    parser.add_argument(
+        "--poc",
+        action="store_true",
+        help="开启 PoC (Proof of Concept) 代码生成。注意：这会显著增加分析时间。"
+    )
+
+    # [新增] 输出格式
+    parser.add_argument(
+        "--output",
+        type=str,
+        choices=["CONSOLE", "JSON", "MARKDOWN"],
+        default="CONSOLE",
+        help="报告输出格式"
+    )
+
     return parser.parse_args()
 
 def load_contract_code(file_path: str) -> str:
@@ -41,6 +75,31 @@ def load_contract_code(file_path: str) -> str:
         raise FileNotFoundError(f"❌ 错误: 找不到文件 '{file_path}'")
     with open(file_path, 'r', encoding='utf-8') as f:
         return f.read()
+
+def save_report(report: AuditReport, output_format: str, file_path: str):
+    """保存报告到文件"""
+    if output_format == "JSON":
+        output_file = "audit_report.json"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(report.model_dump_json(indent=2))
+        print(f"\n💾 报告已保存至: {output_file}")
+        
+    elif output_format == "MARKDOWN":
+        output_file = "audit_report.md"
+        with open(output_file, "w", encoding="utf-8") as f:
+            f.write(f"# 🛡️ 智能合约审计报告\n\n")
+            f.write(f"**目标文件:** `{file_path}`\n\n")
+            f.write(f"## 📊 摘要\n{report.analysis_summary}\n\n")
+            f.write(f"## 🚨 详细发现\n")
+            for i, vul in enumerate(report.vulnerabilities):
+                f.write(f"### {i+1}. {vul.name} ({vul.severity})\n")
+                f.write(f"- **位置:** Line {vul.line}\n")
+                f.write(f"- **描述:** {vul.description}\n")
+                f.write(f"- **修复建议:**\n```solidity\n{vul.fix_suggestion}\n```\n")
+                if vul.poc_code:
+                    f.write(f"- **PoC 测试用例:**\n```solidity\n{vul.poc_code}\n```\n")
+                f.write("\n---\n")
+        print(f"\n💾 报告已保存至: {output_file}")
 
 def print_report(report: AuditReport):
     print("\n" + "="*70)
@@ -57,6 +116,8 @@ def print_report(report: AuditReport):
         print(f"   📍 位置: Line {vul.line}")
         print(f"   📝 描述: {vul.description}")
         print(f"   🛠️ 建议: {vul.fix_suggestion}")
+        if vul.poc_code:
+            print(f"   💣 PoC: (已生成测试用例，请查看完整报告)")
         print("-" * 30)
 
 def detect_project_type(file_path: str, explicit_type: str = None) -> str:
@@ -87,7 +148,9 @@ def main():
 
     print(f"🚀 启动 Certi-Audit Agent...")
     print(f"📂 目标文件: {args.file}")
-    print(f"🔧 审计模式: {detected_type}") # 打印当前模式
+    print(f"🔧 审计模式: {detected_type} | 任务: {args.mode}") # 打印当前模式
+    if args.desc:
+        print(f"📝 业务意图: {args.desc}")
     
     try:
         # 2. [✨] 使用工厂组装依赖 (Dependency Injection)
@@ -99,9 +162,21 @@ def main():
 
         # 4. 执行业务逻辑
         contract_code = load_contract_code(args.file)
-        report = analyzer.analyze(file_path=args.file, contract_code=contract_code)
         
-        print_report(report)
+        # [新增] 传入 mode 和 user_intent
+        report = analyzer.analyze(
+            file_path=args.file, 
+            contract_code=contract_code,
+            mode=args.mode,
+            user_intent=args.desc,
+            enable_poc=args.poc
+        )
+        
+        # 5. 输出报告
+        if args.output == "CONSOLE":
+            print_report(report)
+        else:
+            save_report(report, args.output, args.file)
 
     except FileNotFoundError as e:
         print(e)
