@@ -1,0 +1,15 @@
+
+# config/best_practices.txt
+遵循 EVM 最佳实践，尤其是 Checks-Effects-Interactions (CEI) 模式：
+1. 检查（Checks）：执行 require() 或 assert() 检查。
+2. 影响（Effects）：更新合约状态变量。
+3. 交互（Interactions）：进行外部调用。
+必须确保状态更新（Effects）在任何外部调用（Interactions）之前发生，以防止重入攻击。
+请注意未检查的返回值、对 msg.sender 的隐式信任、时间戳依赖等问题。
+
+
+=== Solana/Rust 安全最佳实践 ===
+1. **Missing Signer Check:** 关键指令（如提款、修改状态）必须检查 `account_info.is_signer`，防止恶意用户伪造指令。
+2. **Account Substitution (Owner Check):** 必须验证传入的 Account 是否属于预期的 Program ID (`account_info.owner == program_id`)，防止攻击者传入伪造的数据账户。
+3. **Integer Overflow:** 虽然 Rust 在 debug 模式下会 panic，但在 release 模式下可能会 overflow。对于资金计算，建议使用 `checked_add`, `checked_sub` 或使用 `anchor` 框架的安全数学库。
+4. **PDA (Program Derived Address) Validation:** 必须验证 PDA 是否由正确的 seeds 和 bump 生成。
